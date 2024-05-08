@@ -9,7 +9,7 @@ train_data = pd.read_json('data/train.json')
 test_data = pd.read_json('data/test.json')
 
 # 设置 BERT 预训练模型
-PRETRAINED_MODEL_NAME = 'bert-base-chinese'  # 以中文模型为例，根据需求更改
+PRETRAINED_MODEL_NAME = 'bert-base-uncased'  # 以中文模型为例，根据需求更改
 
 # 加载 BERT 分词器
 tokenizer = BertTokenizer.from_pretrained(PRETRAINED_MODEL_NAME)
@@ -52,8 +52,7 @@ dense_layer = tf.keras.layers.Dense(5, activation='softmax')(bert_output)
 
 model = tf.keras.Model(inputs=[input_ids, input_mask], outputs=dense_layer)
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-model.summary()
-
+print(model.summary()) 
 # 训练模型
 epochs = 3  # BERT 往往不需要太多轮次
 batch_size = 16  # 根据 GPU 内存调整

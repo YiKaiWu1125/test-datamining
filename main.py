@@ -8,6 +8,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 import tensorflow as tf
 from tensorflow.keras.layers import LSTM, Embedding, SpatialDropout1D
+import re
 
 import argparse
 parser = argparse.ArgumentParser(description='')
@@ -17,17 +18,25 @@ args = parser.parse_args()
 epochs = args.epochs
 dropout = args.dropout
 
+def preprocess_text(text):
+    text = text.lower()  # 轉換為小寫
+    text = re.sub(r'\d+', '', text)  # 移除數字
+    text = re.sub(r'[^\w\s]', '', text)  # 移除標點符號
+    return text
+
 # 加载数据
 train_data = pd.read_json('data/train.json')
+train_data['text'] = train_data['text'].apply(preprocess_text)
 test_data = pd.read_json('data/test.json')
+test_data['text'] = test_data['text'].apply(preprocess_text)
 
 # 查看数据的前几行，确保数据被正确加载
 print(train_data.head())
 
 # 设置最大的词汇量和序列长度
-MAX_NB_WORDS = 50000
-MAX_SEQUENCE_LENGTH = 250
-EMBEDDING_DIM = 100
+MAX_NB_WORDS = 100000
+MAX_SEQUENCE_LENGTH = 300
+EMBEDDING_DIM = 150
 
 # 初始化和配置Tokenizer
 tokenizer = Tokenizer(num_words=MAX_NB_WORDS)
