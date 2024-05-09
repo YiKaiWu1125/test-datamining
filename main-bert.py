@@ -1,106 +1,129 @@
 import torch
-from torch.utils.data import TensorDataset, DataLoader, RandomSampler
+from torch.utils.data import DataLoader, TensorDataset
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW
-from sklearn.metrics import classification_report
 import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score
+import re
 
-# Set device to GPU if available
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
+import argparse
+parser = argparse.ArgumentParser(description='')
+parser.add_argument('-epochs', type=int, default=3, help='epochs')
+parser.add_argument('-batch_size', type=int, default=8, help='batch_size')
+args = parser.parse_args()
+epochs = args.epochs
+batch_size = args.batch_size
 
-# Load data
+def preprocess_text(text):
+    text = text.lower()  # 轉換為小寫
+    text = re.sub(r'\d+', '', text)  # 移除數字
+    text = re.sub(r'[^a-zA-Z\s]', '', text)  # 移除標點符號
+    return text
+
+# 加載數據
 train_data = pd.read_json('data/train.json')
+train_data['text'] = train_data['title'] +' '+  train_data['text'].apply(preprocess_text)
 test_data = pd.read_json('data/test.json')
+test_data['text'] = train_data['title'] +' '+ test_data['text'].apply(preprocess_text)
 
-# Initialize BERT tokenizer
-tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
+# 使用 BERT 的 Tokenizer
+tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
+# 將文本轉換為 BERT 的輸入格式
 def encode_data(data):
     input_ids = []
     attention_masks = []
-
-    for sent in data:
-        encoded_dict = tokenizer.encode_plus(
-            sent,
+    for text in data:
+        encoded = tokenizer.encode_plus(
+            text,
             add_special_tokens=True,
-            max_length=32,
-            pad_to_max_length=True,
+            max_length=512,
+            padding='max_length',  # 更新填充方式
             return_attention_mask=True,
             return_tensors='pt',
+            truncation=True
         )
-        input_ids.append(encoded_dict['input_ids'])
-        attention_masks.append(encoded_dict['attention_mask'])
+        input_ids.append(encoded['input_ids'])
+        attention_masks.append(encoded['attention_mask'])
+    return torch.cat(input_ids, dim=0), torch.cat(attention_masks, dim=0)
 
-    input_ids = torch.cat(input_ids, dim=0)
-    attention_masks = torch.cat(attention_masks, dim=0)
-    return input_ids, attention_masks
+X_train_ids, X_train_masks = encode_data(train_data['text'])
+Y_train = torch.tensor(train_data['rating'].values - 1)  # 整數標籤，從0開始
 
-# Encode data
-train_inputs, train_masks = encode_data(train_data['text'].values)
-train_labels = torch.tensor(train_data['rating'].values - 1)
-test_inputs, test_masks = encode_data(test_data['text'].values)
+# 分割數據為訓練集和驗證集
+X_train, X_val, X_mask_train, X_mask_val, Y_train, Y_val = train_test_split(X_train_ids, X_train_masks, Y_train, test_size=0.1, random_state=42)
 
-# Create DataLoader for training set
-train_data = TensorDataset(train_inputs, train_masks, train_labels)
-train_sampler = RandomSampler(train_data)
-train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=16)
+# 創建 DataLoader
+train_data = TensorDataset(X_train, X_mask_train, Y_train)
+train_dataloader = DataLoader(train_data, shuffle=True, batch_size=batch_size)
+val_data = TensorDataset(X_val, X_mask_val, Y_val)
+val_dataloader = DataLoader(val_data, batch_size=batch_size)
 
-# Initialize BERT model for sequence classification
-model = BertForSequenceClassification.from_pretrained(
-    "bert-base-uncased",
-    num_labels=5,
-    output_attentions=False,
-    output_hidden_states=False,
-)
-model.to(device)
+# 加載 BERT 模型
+model = BertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=5)
+model.cuda()  # 強制使用 GPU
 
-# Set optimizer
-optimizer = AdamW(model.parameters(), lr=2e-5, eps=1e-8)
+# 設定優化器
+optimizer = AdamW(model.parameters(), lr=2e-5)
 
-# Training loop
+# 訓練模型
 model.train()
-for epoch_i in range(3):
-    print(f"Epoch {epoch_i+1} of 3")
-    total_train_loss = 0
-
+for epoch in range(epochs):  # 設定迴圈次數
+    total_loss = 0
     for step, batch in enumerate(train_dataloader):
-        b_input_ids, b_input_mask, b_labels = tuple(t.to(device) for t in batch)
+        batch = [r.cuda() for r in batch]
+        inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[2]}
         model.zero_grad()
-        outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask, labels=b_labels)
-        loss = outputs[0]
-        total_train_loss += loss.item()
+        outputs = model(**inputs)
+        loss = outputs.loss
+        total_loss += loss.item()
         loss.backward()
         optimizer.step()
+    print(f'Epoch {epoch + 1}, Loss {total_loss / len(train_dataloader)}')
 
-        if step % 20 == 0 and step != 0:
-            print(f"  Batch {step} of {len(train_dataloader)}. Loss: {loss.item()}.")
-
-    # Validation
-    model.eval()
-    val_predictions = []
-    val_labels = []
-    with torch.no_grad():
-        for val_batch in val_dataloader:
-            b_input_ids, b_input_mask, b_labels = tuple(t.to(device) for t in val_batch)
-            outputs = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
-            logits = outputs[0]
-            val_predictions.extend(logits.argmax(dim=-1).cpu().numpy())
-            val_labels.extend(b_labels.cpu().numpy())
-    
-    val_accuracy = classification_report(val_labels, val_predictions, output_dict=True)['accuracy']
-    print(f"  Validation Accuracy: {val_accuracy}")
-
-# Testing
+# 評估模型在驗證集上的表現
 model.eval()
-with torch.no_grad():
-    predictions = model(test_inputs.to(device), token_type_ids=None, attention_mask=test_masks.to(device))
-predicted_indices = predictions[0].argmax(dim=-1).cpu().numpy()
-predicted_ratings = predicted_indices + 1
+predictions, true_vals = [], []
+for batch in val_dataloader:
+    batch = [t.cuda() for t in batch]
+    inputs = {'input_ids': batch[0], 'attention_mask': batch[1], 'labels': batch[2]}
+    with torch.no_grad():
+        outputs = model(**inputs)
+    logits = outputs.logits
+    predictions.append(logits.detach().cpu().numpy())
+    true_vals.append(batch[2].detach().cpu().numpy())
 
-# Output results
+predictions = np.concatenate(predictions, axis=0)
+predictions = np.argmax(predictions, axis=1)
+true_vals = np.concatenate(true_vals)
+accuracy = accuracy_score(true_vals, predictions)
+print(f'Accuracy on validation set: {accuracy}')
+
+# 使用模型對測試集進行預測
+test_ids, test_masks = encode_data(test_data['text'])
+test_data = TensorDataset(test_ids, test_masks)
+test_dataloader = DataLoader(test_data, batch_size=batch_size)
+
+model.eval()
+test_predictions = []
+for batch in test_dataloader:
+    batch = [t.cuda() for t in batch]
+    inputs = {'input_ids': batch[0], 'attention_mask': batch[1]}
+    with torch.no_grad():
+        outputs = model(**inputs)
+    logits = outputs.logits
+    test_predictions.append(logits.detach().cpu().numpy())
+
+test_predictions = np.concatenate(test_predictions, axis=0)
+test_predictions = np.argmax(test_predictions, axis=1) + 1  # 加1是因為索引從0開始，而評級從1開始
+
+# 創建提交文件的 DataFrame
 submission = pd.DataFrame({
-    'index': ['index_' + str(i) for i in range(len(predicted_ratings))],
-    'rating': [str(rating) + '.0' for rating in predicted_ratings]
+    'index': ['index_' + str(i) for i in range(0, len(test_predictions))],
+    'rating': [str(rating) + '.0' for rating in test_predictions]
 })
-submission.to_csv('output/submission.csv', index=False)
-print("Submission file saved as 'output/submission.csv'.")
+
+# 將 DataFrame 保存為 CSV 文件，不包含索引列
+submission.to_csv('output_bert/submission'+str(int(accuracy * 10000))+'_'+str(epochs)+'_'+str(batch_size)'.csv', index=False)
+print("提交文件已保存。")
