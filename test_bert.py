@@ -4,9 +4,9 @@ import time
 
 def main():  
     #arr = [1,1,1,2,3,2,1,1,1,1,1]
-    epochs_arr =       [    2,    1,   1,   1,    1,   1,    1,   1,    1 ]
-    weight_decay_arr = [  0.2,  0.2, 0.3, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45 ]
-    batch_size_arr =   [   32,   32,  32,  64,   25,  30,   30,  30,  128 ]
+    epochs_arr =       [     1,     5,    5,    5,    1 ]
+    weight_decay_arr = [  0.25,  0.19, 0.19, 0.25,  0.19]
+    batch_size_arr =   [    20,    20,   32,   20,   128]
     index = 0
     while True:
         print("Current time:", time.strftime("%H:%M:%S", time.localtime()))
