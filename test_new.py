@@ -3,9 +3,9 @@ import random
 import time
 
 def main():  
-    epochs_arr =       [  1,    20,   20,    20,    20,    1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1]
-    weight_decay_arr = [0.3,  0.25,  0.3,  0.35,   0.4, 0.31,  0.33,  0.35,  0.38,   0.4,  0.42,  0.45,  0.48,   0.5,  0.52,  0.55,  0.58,   0.6,  0.62,  0.65,  0.68,   0.7,  0.72,  0.75,  0.78,   0.8,  0.82,  0.85,  0.88]
-    batch_size_arr =   [  4,     4,    4,     4,     4,    8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8]
+    epochs_arr =       [  3,    1 ,   1]
+    weight_decay_arr = [0.4,  0.4 , 0.3]
+    batch_size_arr =   [  8,    8 ,   8]
     index = 0
     while True:
         print("Current time:", time.strftime("%H:%M:%S", time.localtime()))
