@@ -3,10 +3,9 @@ import random
 import time
 
 def main():  
-    #arr = [1,1,1,2,3,2,1,1,1,1,1]
-    epochs_arr =       [     1,     5,    5,    5,    1 ]
-    weight_decay_arr = [  0.25,  0.19, 0.19, 0.25,  0.19]
-    batch_size_arr =   [    20,    20,   32,   20,   128]
+    epochs_arr =       [    1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1,     1]
+    weight_decay_arr = [ 0.31,  0.33,  0.35,  0.38,   0.4,  0.42,  0.45,  0.48,   0.5,  0.52,  0.55,  0.58,   0.6,  0.62,  0.65,  0.68,   0.7,  0.72,  0.75,  0.78,   0.8,  0.82,  0.85,  0.88]
+    batch_size_arr =   [   32,    32,    32,    32,    32,    32,    32,    32,    32,    32,    32,    32,    32,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8,     8]
     index = 0
     while True:
         print("Current time:", time.strftime("%H:%M:%S", time.localtime()))
@@ -21,7 +20,7 @@ def main():
         index += 1
         
         print(f"num_epochs:{epochs} & batch_size:{batch_size} & weight_decay:{weight_decay}")
-        os.system(str("python main-bert2.py -epochs " + str(epochs) + " -batch_size "+ str(batch_size) +" -weight_decay "+str(weight_decay)))
+        os.system(str("python bert.py -epochs " + str(epochs) + " -batch_size "+ str(batch_size) +" -weight_decay "+str(weight_decay)))
 
 if __name__ == "__main__":
     main()
